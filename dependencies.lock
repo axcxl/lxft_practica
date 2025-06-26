@@ -8,7 +8,7 @@ dependencies:
   idf:
     source:
       type: idf
-    version: 5.4.0
+    version: 6.0.0
 direct_dependencies:
 - ethernet_init
 manifest_hash: cf5b6502000f4e2c16a842164a2265a825058afc7dcc655a0c65547ba58d7c31

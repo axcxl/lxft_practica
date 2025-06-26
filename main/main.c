@@ -27,6 +27,5 @@ void app_main(void)
 
     xTaskCreatePinnedToCore(task_sensors, "core0_sensors", 4096, (void*)&msg_queue, TASK_PRIO_3, NULL, CORE0);
     xTaskCreatePinnedToCore(task_comms, "core1_comms", 4096, (void*)&msg_queue, TASK_PRIO_3, NULL, CORE1);
-   
 
 }

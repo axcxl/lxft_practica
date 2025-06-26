@@ -9,6 +9,7 @@
 #include "mqtt_client.h"
 #include "h/task_comms.h"
 #include "h/sensor_queue.h"
+#include "h/https_utils.h"
 
 static esp_eth_handle_t *s_eth_handles = NULL;
 static uint8_t s_eth_port_cnt = 0;
@@ -115,9 +116,9 @@ char *get_mqtt_board_id()
 
 void task_comms(void* msg_queue)
 {
-    char mqttdata[10];
+    char mqttdata[11];
     char topic_fmt[] = "/sensor_%s/%s";
-    char topic[20];
+    char topic[21];
     int msg_id;
     sensq data;  // data type should be same as queue item type
     const TickType_t xTicksToWait = pdMS_TO_TICKS(1000); //read queue every 100ms
@@ -126,6 +127,8 @@ void task_comms(void* msg_queue)
     };
 
     init_ethernet_and_netif();
+
+    start_webserver();
 
     esp_mqtt_client_handle_t client = esp_mqtt_client_init(&mqtt_cfg);
     /* The last argument may be used to pass data to the event handler, in this example mqtt_event_handler */
@@ -142,8 +145,8 @@ void task_comms(void* msg_queue)
             }
 
             /* Prepare topic and data to send */
-            snprintf(mqttdata, 10, "%.2f",data.value);
-            snprintf(topic, 100, topic_fmt, get_mqtt_board_id(), sensq_string[data.type]);
+            snprintf(mqttdata, sizeof(mqttdata), "%.2f",data.value);
+            snprintf(topic, sizeof(topic), topic_fmt, get_mqtt_board_id(), sensq_string[data.type]);
 
             ESP_LOGI(TAG, "received data = %.2f (type=%d), sending to %s", data.value, (int)data.type, topic);
             msg_id = esp_mqtt_client_publish(client, topic, mqttdata, 0, 0, 0);
