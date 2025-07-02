@@ -8,18 +8,20 @@
 #include "esp_event.h"
 #include "esp_mac.h"
 #include "mqtt_client.h"
-
 #include "h/https_utils.h"
 
 static const char *TAG = "HTTPS";
-char ID[ID_LEN + 1];
+
+char ID[ID_LEN + 1] = "ESP";
 char URL[URL_LEN + 1];
+bool mqtt_config_updated = false;
+
 
 static esp_err_t get_handler(httpd_req_t *req)
 {
     char html_buffer[512];
 
-    // Construct the HTML page
+    /* Construct the HTML page */
     snprintf(html_buffer, sizeof(html_buffer),
         "<!DOCTYPE html><html><head><title>ESP32 Control</title></head>"
         "<body><h1>ESP32 - MQTT Config</h1>"
@@ -31,7 +33,7 @@ static esp_err_t get_handler(httpd_req_t *req)
         "</form></body></html>",
         ID, URL);
 
-    // Send the response
+    /* Send the response */
     httpd_resp_set_type(req, "text/html");
     httpd_resp_send(req, html_buffer, HTTPD_RESP_USE_STRLEN);
 
@@ -62,25 +64,39 @@ static esp_err_t post_handler(httpd_req_t *req)
     buf[ret] = '\0';
 
     /* Update the Parameters */
-    char new_id[ID_LEN+1] = {0}; // ID
-    if (httpd_query_key_value(buf, "ID", new_id, sizeof(new_id)) == ESP_OK) {
-        printf("Found ID query parameter => %s\n", new_id);
-        strncpy(ID, new_id, sizeof(ID) - 1);
-        ID[sizeof(ID) - 1] = '\0';
+    char temp_val[URL_LEN + 1];
+
+    /* Parse ID */
+    printf("\n");
+    if (httpd_query_key_value(buf, "ID", temp_val, sizeof(temp_val)) == ESP_OK) {
+        URL_DECODE(temp_val);
+        if (strlen(temp_val) == 0) {
+            ESP_LOGW(TAG, "Received empty ID, skipping update\n");
+        } else {
+            ESP_LOGI(TAG, "Received ID: '%s'", temp_val);
+            strncpy(ID, temp_val, ID_LEN);
+            ID[ID_LEN] = '\0';
+        }
     } else {
-        ESP_LOGE(TAG, "ID query parameter not found or too long");
+        ESP_LOGE(TAG, "ID not found in POST request");
     }
 
-    char new_url[URL_LEN+1] = {0}; // URL
-    if (httpd_query_key_value(buf, "URL", new_url, sizeof(new_url)) == ESP_OK) {
-        printf("Found URL query parameter => %s\n", new_url);
-        strncpy(URL, new_url, sizeof(URL) - 1);
-        URL[sizeof(URL) - 1] = '\0';
+    /* Parse URL */
+    if (httpd_query_key_value(buf, "URL", temp_val, sizeof(temp_val)) == ESP_OK) {
+        URL_DECODE(temp_val);
+        if (strlen(temp_val) == 0) {
+            ESP_LOGW(TAG, "Received empty URL, skipping update\n");
+        } else {
+            ESP_LOGI(TAG, "Received URL: '%s'\n", temp_val);
+            strncpy(URL, temp_val, URL_LEN);
+            URL[URL_LEN] = '\0';
+            mqtt_config_updated = true;
+        }
     } else {
-        ESP_LOGE(TAG, "URL query parameter not found or too long");
+        ESP_LOGE(TAG, "URL not found in POST request");
     }
 
-    // Redirect the browser back to the root page
+    /* Redirect the browser back to the root page */
     httpd_resp_set_status(req, "303 See Other");
     httpd_resp_set_hdr(req, "Location", "/");
     httpd_resp_send(req, NULL, 0);
@@ -88,11 +104,13 @@ static esp_err_t post_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
+
 static const httpd_uri_t uri_get = {
     .uri = "/",
     .method = HTTP_GET,
     .handler = get_handler
 };
+
 
 static const httpd_uri_t uri_post = {
     .uri = "/update",
@@ -101,15 +119,13 @@ static const httpd_uri_t uri_post = {
 };
 
 
-/*
- * Function to start the web server
- */
+
 httpd_handle_t start_webserver(void)
 {
     httpd_ssl_config_t config = HTTPD_SSL_CONFIG_DEFAULT();
     httpd_handle_t server = NULL;
 
-    // Update config for HTTPS
+    /* Import the certificates */
     extern const unsigned char servercert_start[] asm("_binary_servercert_pem_start");
     extern const unsigned char servercert_end[]   asm("_binary_servercert_pem_end");
     config.servercert = servercert_start;
