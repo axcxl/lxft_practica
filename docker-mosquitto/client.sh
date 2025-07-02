@@ -4,6 +4,6 @@
 #
 
 docker run -it --rm efrecon/mqtt-client sub \
-        -h 16.1.1.101 \
+        -h 192.168.1.175 \
         -t "#" \
         -v
