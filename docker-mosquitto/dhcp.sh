@@ -1,3 +1,10 @@
+# Script for running a local DHCP server
+# ARGUMENTS:
+#   "-conf" = update the config file
+#
+# If the interface has another name use this:
+#   sudo ip link set old_name name eth0
+
 #!/bin/bash
 
 if [[ "$1" == "-conf" ]]; then
@@ -7,7 +14,7 @@ if [[ "$1" == "-conf" ]]; then
     echo ""
 fi
 
-# Tell NetworkManager to ignore eth0 to prevent it from overriding the manual IP configuration
+# Tell NetworkManager to ignore the interface to prevent it from overriding the manual IP configuration
 sudo nmcli dev set eth0 managed no
 
 sudo ip addr flush dev eth0
