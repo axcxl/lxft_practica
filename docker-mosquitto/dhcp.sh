@@ -1,9 +1,6 @@
 # Script for running a local DHCP server
 # ARGUMENTS:
 #   "-conf" = update the config file
-#
-# If the interface has another name use this:
-#   sudo ip link set old_name name eth0
 
 #!/bin/bash
 

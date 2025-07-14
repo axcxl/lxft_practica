@@ -22,6 +22,16 @@ static bool ip_acquired = false;
 static bool mqtt_is_connected = false;
 static esp_mqtt_client_handle_t client = NULL;
 
+/* Certificates for MQTTS */
+extern const uint8_t client_cert_pem_start[] asm("_binary_client_crt_start");
+extern const uint8_t client_cert_pem_end[] asm("_binary_client_crt_end");
+
+extern const uint8_t client_key_pem_start[] asm("_binary_client_key_start");
+extern const uint8_t client_key_pem_end[] asm("_binary_client_key_end");
+
+extern const uint8_t ca_cert_pem_start[] asm("_binary_ca_crt_start");
+extern const uint8_t ca_cert_pem_end[] asm("_binary_ca_crt_end");
+
 
 /* Event handler for Ethernet events */
 static void eth_event_handler(void *arg, esp_event_base_t event_base,
@@ -95,7 +105,6 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
                 log_error_if_nonzero("reported from tls stack", event->error_handle->esp_tls_stack_err);
                 log_error_if_nonzero("captured as transport's socket errno",  event->error_handle->esp_transport_sock_errno);
                 ESP_LOGI(TAG, "Last errno string (%s)", strerror(event->error_handle->esp_transport_sock_errno));
-
             }
             break;
         case MQTT_EVENT_PUBLISHED:
@@ -109,23 +118,48 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 
 
 static void config_mqtt_protocol() {
-    printf("Initializing MQTT Protocol\n");
+    printf("Initializing MQTT Protocol\nUpdated config: %d\n", mqtt_config_updated);
     printf("ID: %s\n", ID);
     printf("URL: %s\n\n", URL);
 
     if (client == NULL) {
-        esp_mqtt_client_config_t mqtt_cfg = {
+        const esp_mqtt_client_config_t mqtt_cfg = {
             .broker.address.uri = CONFIG_BROKER_URL,
+            .broker.verification.certificate = (const char *)ca_cert_pem_start,
+            .broker.verification.certificate_len = ca_cert_pem_end - ca_cert_pem_start,
+            .broker.verification.common_name = "localhost",
+            .credentials = {
+                .authentication = {
+                    .certificate = (const char *)client_cert_pem_start,
+                    .certificate_len = client_cert_pem_end - client_cert_pem_start,
+                    .key = (const char *)client_key_pem_start,
+                    .key_len = client_key_pem_end - client_key_pem_start,
+                },
+            }
         };
+
         client = esp_mqtt_client_init(&mqtt_cfg);
         esp_mqtt_client_register_event(client, ESP_EVENT_ANY_ID, mqtt_event_handler, NULL);
         esp_mqtt_client_start(client);
 
     } else if (mqtt_config_updated) {
         esp_mqtt_client_destroy(client);
-        esp_mqtt_client_config_t mqtt_cfg = {
+
+        const esp_mqtt_client_config_t mqtt_cfg = {
             .broker.address.uri = URL,
+            .broker.verification.certificate = (const char *)ca_cert_pem_start,
+            .broker.verification.certificate_len = ca_cert_pem_end - ca_cert_pem_start,
+            .broker.verification.common_name = "localhost",
+            .credentials = {
+                .authentication = {
+                    .certificate = (const char *)client_cert_pem_start,
+                    .certificate_len = client_cert_pem_end - client_cert_pem_start,
+                    .key = (const char *)client_key_pem_start,
+                    .key_len = client_key_pem_end - client_key_pem_start,
+                },
+            }
         };
+
         client = esp_mqtt_client_init(&mqtt_cfg);
         esp_mqtt_client_register_event(client, ESP_EVENT_ANY_ID, mqtt_event_handler, NULL);
         esp_mqtt_client_start(client);

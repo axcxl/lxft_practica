@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# All PEM / PSSWD = musca
+# All PEM / PSSWD = musca  -passout pass:musca
 
 # Function to create OpenSSL config files
 create_configs() {
@@ -24,8 +24,8 @@ basicConstraints = CA:TRUE
 keyUsage = cRLSign, keyCertSign
 EOF
 
-    # Server config
-    cat > server.conf <<EOF
+    # Server/Broker config
+    cat > broker.conf <<EOF
 [req]
 distinguished_name = req_distinguished_name
 prompt = no
@@ -58,31 +58,39 @@ EOF
 # Function to generate Certificate Authority - CA
 generate_ca() {
     echo "#####  Generating a Certificate Authority (CA)  #####"
-    openssl req -new -x509 -days 365 -extensions v3_ca -keyout ca.key -out ca.crt -config ca.conf -passout pass:musca || { echo "##### Failed to generate CA #####"; exit 1; }
+    openssl req -new -x509 -days 365 -extensions v3_ca -keyout ca.key -out ca.crt -config ca.conf -nodes || { echo "##### Failed to generate CA #####"; exit 1; }
+
+    rm ../../main/certs/ca.crt
+    cp ca.crt ../../main/certs
 }
 
 # Function to generate server certificates
 generate_server() {
     echo "#####  Generating Server Key  #####"
-    openssl genrsa -aes256 -out server.key -passout pass:musca 2048 || { echo "##### Failed to generate Server key #####"; exit 1; }
+    openssl genrsa -out broker.key 2048 || { echo "##### Failed to generate Server key #####"; exit 1; }
 
     echo "#####  Generating a Certificate Signing Request (CSR)  #####"
-    openssl req -out server.csr -key server.key -new -config server.conf -passin pass:musca || { echo "##### Failed to generate CSR #####"; exit 1; }
+    openssl req -out broker.csr -key broker.key -new -config broker.conf || { echo "##### Failed to generate CSR #####"; exit 1; }
 
-    echo "#####  Generate Server Certificate  #####"
-    openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out server.crt -days 365 -passin pass:musca || { echo "##### Failed to generate Generate Server Certificate #####"; exit 1; }
+    echo "#####  Generate broker Certificate  #####"
+    openssl x509 -req -in broker.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out broker.crt -days 365 || { echo "##### Failed to generate Generate Server Certificate #####"; exit 1; }
 }
 
 # Function to generate client certificates
 generate_client() {
     echo "#####  Generating Client Key  #####"
-    openssl genrsa -aes256 -out client.key -passout pass:musca 2048 || { echo "##### Failed to generate Client key #####"; exit 1; }
+    openssl genrsa -out client.key 2048 || { echo "##### Failed to generate Client key #####"; exit 1; }
 
     echo "#####  Generating a Certificate Signing Request (CSR)  #####"
-    openssl req -out client.csr -key client.key -new -config client.conf -passin pass:musca || { echo "##### Failed to generate CSR #####"; exit 1; }
+    openssl req -out client.csr -key client.key -new -config client.conf || { echo "##### Failed to generate CSR #####"; exit 1; }
 
     echo "#####  Generate Client Certificate  #####"
-    openssl x509 -req -in client.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out client.crt -days 365 -passin pass:musca || { echo "##### Failed to generate Generate Client Certificate #####"; exit 1; }
+    openssl x509 -req -in client.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out client.crt -days 365 || { echo "##### Failed to generate Generate Client Certificate #####"; exit 1; }
+
+    rm ../../main/certs/client.crt
+    rm ../../main/certs/client.key
+    cp client.crt ../../main/certs
+    cp client.key ../../main/certs
 }
 
 # Create config files
@@ -104,10 +112,18 @@ case "$1" in
         fi
         generate_client
         ;;
+    -clean)
+        echo "#####  Cleaning all generated certificates  #####"
+        rm -f ca.crt ca.key ca.srl ca.conf
+        rm -f broker.crt broker.key broker.csr broker.conf
+        rm -f client.crt client.key client.csr client.conf
+        echo "#####  All certificates and config files removed  #####"
+        ;;
     *)
-        echo "Usage: $0 [-server|-client]"
+        echo "Usage: $0 [-server|-client|-clean]"
         echo "  -server: Generate server certificates"
         echo "  -client: Generate client certificates"
+        echo "  -clean:  Remove all generated certificates and config files"
         exit 1
         ;;
 esac

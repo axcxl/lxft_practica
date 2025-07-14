@@ -10,8 +10,8 @@
 docker run -it --rm -p 1883:1883 -p 9001:9001 -p 8883:8883      \
     -v ./mosquitto.conf:/mosquitto/config/mosquitto.conf        \
     -v ./certs/ca.crt:/mosquitto/certs/ca.crt                   \
-    -v ./certs/server.key:/mosquitto/certs/server.key           \
-    -v ./certs/server.crt:/mosquitto/certs/server.crt           \
+    -v ./certs/broker.key:/mosquitto/certs/broker.key           \
+    -v ./certs/broker.crt:/mosquitto/certs/broker.crt           \
     -v /mosquitto/log:/mosquitto/log                            \
     -v /mosquitto/data:/mosquitto/data                          \
     eclipse-mosquitto
