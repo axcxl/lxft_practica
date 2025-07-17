@@ -1,5 +1,4 @@
 #include <string.h>
-#include <stdlib.h> // Required for itoa
 
 #include "esp_log.h"
 #include "esp_eth.h"
@@ -10,6 +9,10 @@
 #include "mqtt_client.h"
 #include "h/https_utils.h"
 
+#include "esp_ota_ops.h"
+#include "esp_system.h"
+#define OTA_BUFSIZE 1024
+
 static const char *TAG = "HTTPS";
 
 char ID[ID_LEN + 1] = "ESP";
@@ -19,7 +22,7 @@ bool mqtt_config_updated = false;
 
 static esp_err_t get_handler(httpd_req_t *req)
 {
-    char html_buffer[512];
+    char html_buffer[1024];
 
     /* Construct the HTML page */
     snprintf(html_buffer, sizeof(html_buffer),
@@ -30,7 +33,13 @@ static esp_err_t get_handler(httpd_req_t *req)
         "<b>ID: </b> <input type=\"text\" size=\"6\" maxlength=\"6\" name=\"ID\" value=\"%s\"><br><br>"
         "<b>URL: </b> <input type=\"text\" size=\"64\" maxlength=\"64\" name=\"URL\" value=\"%s\"><br><br>"
         "<input type=\"submit\" value=\"Update\">"
-        "</form></body></html>",
+        "</form>"
+        "<hr><h1>ESP32 - OTA Update</h1>"
+        "<form method=\"post\" action=\"/ota\" enctype=\"multipart/form-data\">"
+        "<input type=\"file\" name=\"firmware\">"
+        "<input type=\"submit\" value=\"Update Firmware\">"
+        "</form>"
+        "</body></html>",
         ID, URL);
 
     /* Send the response */
@@ -105,6 +114,134 @@ static esp_err_t post_handler(httpd_req_t *req)
 }
 
 
+
+static esp_err_t ota_update_handler(httpd_req_t *req)
+{
+    esp_ota_handle_t ota_handle = 0;
+    const esp_partition_t *update_partition = NULL;
+    char ota_write_buf[OTA_BUFSIZE + 1] = { 0 };
+    char *body_start_p = NULL;
+    esp_err_t err;
+
+    ESP_LOGI(TAG, "Starting OTA update...");
+
+    /* Find the OTA partition */
+    update_partition = esp_ota_get_next_update_partition(NULL);
+    if (update_partition == NULL) {
+        ESP_LOGE(TAG, "OTA partition not found");
+        httpd_resp_send_500(req);
+        return ESP_FAIL;
+    }
+    ESP_LOGI(TAG, "Writing to partition subtype %d at offset 0x%x",
+             update_partition->subtype, update_partition->address);
+
+    /* Begin the OTA update process. We use OTA_SIZE_UNKNOWN because the total request
+       length includes headers, not just the binary */
+    err = esp_ota_begin(update_partition, OTA_SIZE_UNKNOWN, &ota_handle);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "esp_ota_begin failed (%s)", esp_err_to_name(err));
+        httpd_resp_send_500(req);
+        return ESP_FAIL;
+    }
+
+    int content_received = 0;
+    int binary_file_len = 0;
+    bool header_found = false;
+
+    /* Read the request body in chunks */
+    while (true) {
+        int recv_len = httpd_req_recv(req, ota_write_buf, OTA_BUFSIZE);
+        if (recv_len < 0) {
+            if (recv_len == HTTPD_SOCK_ERR_TIMEOUT) {
+                /* Socket timeout, can retry */
+                continue;
+            }
+            ESP_LOGE(TAG, "Firmware reception failed");
+            esp_ota_abort(ota_handle);
+            httpd_resp_send_500(req);
+            return ESP_FAIL;
+        }
+
+        /* First chunk - remove the header */
+        if (!header_found) {
+            /* Find the boundary between headers and binary data */
+            body_start_p = strstr(ota_write_buf, "\r\n\r\n");
+            
+            if (body_start_p != NULL) {
+                /* Move the pointer past the "\r\n\r\n" */
+                body_start_p += 4; 
+                
+                /* Calculate the length of the binary data in this first chunk */
+                int data_len = recv_len - (body_start_p - ota_write_buf);
+                
+                /* Write the first chunk of binary data */
+                err = esp_ota_write(ota_handle, (const void *)body_start_p, data_len);
+                if (err != ESP_OK) {
+                    ESP_LOGE(TAG, "esp_ota_write failed (%s)", esp_err_to_name(err));
+                    esp_ota_abort(ota_handle);
+                    httpd_resp_send_500(req);
+                    return ESP_FAIL;
+                }
+                header_found = true;
+                binary_file_len += data_len;
+            }
+        } else {
+            /* This is a subsequent chunk, containing only binary data */
+            err = esp_ota_write(ota_handle, (const void *)ota_write_buf, recv_len);
+            if (err != ESP_OK) {
+                ESP_LOGE(TAG, "esp_ota_write failed (%s)", esp_err_to_name(err));
+                esp_ota_abort(ota_handle);
+                httpd_resp_send_500(req);
+                return ESP_FAIL;
+            }
+            binary_file_len += recv_len;
+        }
+
+        content_received += recv_len;
+        ESP_LOGD(TAG, "Received %d bytes, written %d bytes of binary", content_received, binary_file_len);
+
+        /* Check if we have finished receiving */
+        if (recv_len == 0) {
+            break;
+        }
+    }
+
+    ESP_LOGI(TAG, "Total binary data written: %d bytes", binary_file_len);
+
+    /* Finish the OTA update */
+    err = esp_ota_end(ota_handle);
+    if (err != ESP_OK) {
+        if (err == ESP_ERR_OTA_VALIDATE_FAILED) {
+            ESP_LOGE(TAG, "Image validation failed, image is corrupted or incomplete");
+        } else {
+            ESP_LOGE(TAG, "esp_ota_end failed (%s)!", esp_err_to_name(err));
+        }
+        httpd_resp_send_500(req);
+        return ESP_FAIL;
+    }
+
+    /* Set the boot partition to the new one */
+    err = esp_ota_set_boot_partition(update_partition);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "esp_ota_set_boot_partition failed (%s)!", esp_err_to_name(err));
+        httpd_resp_send_500(req);
+        return ESP_FAIL;
+    }
+
+    /* Send a success response and then restart */
+    ESP_LOGI(TAG, "OTA Update successful! Rebooting...");
+    const char *success_msg = "Firmware update successful. Rebooting now...";
+    httpd_resp_send(req, success_msg, HTTPD_RESP_USE_STRLEN);
+    
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    esp_restart();
+
+    return ESP_OK;
+}
+
+
+
+
 static const httpd_uri_t uri_get = {
     .uri = "/",
     .method = HTTP_GET,
@@ -118,6 +255,12 @@ static const httpd_uri_t uri_post = {
     .handler = post_handler
 };
 
+
+static const httpd_uri_t uri_ota = {
+    .uri = "/ota",
+    .method = HTTP_POST,
+    .handler = ota_update_handler
+};
 
 
 httpd_handle_t start_webserver(void)
@@ -146,5 +289,6 @@ httpd_handle_t start_webserver(void)
     ESP_LOGI(TAG, "Registering URI handlers");
     httpd_register_uri_handler(server, &uri_get);
     httpd_register_uri_handler(server, &uri_post);
+    httpd_register_uri_handler(server, &uri_ota);
     return server;
 }

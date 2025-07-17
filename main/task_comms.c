@@ -108,7 +108,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
             }
             break;
         case MQTT_EVENT_PUBLISHED:
-            // ESP_LOGI(TAG, "MQTT Event: Published");
+            ESP_LOGD(TAG, "MQTT Event: Published");
             break;
         default:
             ESP_LOGE(TAG, "MQTT Event not handled - id:%d", event->event_id);

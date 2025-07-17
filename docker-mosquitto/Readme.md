@@ -21,4 +21,5 @@
 - **certs/certs_generator.sh** ~ runs an automatic config that generates the required certificates for the Certificate Authority, Brocker(Server) and Client
     - The **Common Name** (CN) of the Server might need changes
     - ⚠️ **It has to be the same as the -h option from client.sh** or otherwise use **--insecure** for the client to disable hostname verification
+    - it uses relative paths, so run it from **/docker-mosquitto/certs/** folder
 

@@ -1,3 +1,16 @@
 build/
+docker-mosquitto/certs/broker.conf
+docker-mosquitto/certs/broker.crt
+docker-mosquitto/certs/broker.csr
+docker-mosquitto/certs/broker.key
+docker-mosquitto/certs/ca.conf
+docker-mosquitto/certs/ca.crt
+docker-mosquitto/certs/ca.key
+docker-mosquitto/certs/ca.srl
+docker-mosquitto/certs/client.conf
+docker-mosquitto/certs/client.crt
+docker-mosquitto/certs/client.csr
+docker-mosquitto/certs/client.key
+main/certs/
 sdkconfig.old
 tags*
