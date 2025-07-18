@@ -16,6 +16,10 @@
     ```bash
         sudo service mosquitto stop
     ```
+    -if this error apears: "Unable to find image 'eclipse-mosquitto:latest' locally"
+    ```bash
+        docker pull eclipse-mosquitto:latest
+    ```
 
 - **client.sh** ~ runs a client that connects to the broker
 - **certs/certs_generator.sh** ~ runs an automatic config that generates the required certificates for the Certificate Authority, Brocker(Server) and Client
