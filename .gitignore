@@ -11,6 +11,11 @@ docker-mosquitto/certs/client.conf
 docker-mosquitto/certs/client.crt
 docker-mosquitto/certs/client.csr
 docker-mosquitto/certs/client.key
+docker-mosquitto/certs/client_home_assistant.conf
+docker-mosquitto/certs/client_home_assistant.crt
+docker-mosquitto/certs/client_home_assistant.csr
+docker-mosquitto/certs/client_home_assistant.key
+docker-mosquitto/home_assistant/docker
 main/certs/
 sdkconfig.old
 tags*

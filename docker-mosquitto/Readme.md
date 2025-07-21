@@ -27,3 +27,19 @@
     - ⚠️ **It has to be the same as the -h option from client.sh** or otherwise use **--insecure** for the client to disable hostname verification
     - it uses relative paths, so run it from **/docker-mosquitto/certs/** folder
 
+
+# Home Assistant
+- **home_assistant.sh** ~ installs and runs the home assistant docker
+    - To acces the web page via browser use this:  
+        http://localhost:8123  
+        - Username: admin
+        - Password: #dxc_lxft#
+    - for stopping and removing the docker run:
+    ```bash
+        docker rm -f homeassistant
+    ``` 
+    - for updating home assistant docker:
+    ```bash
+        docker compose pull
+        docker compose up -d
+    ```

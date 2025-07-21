@@ -53,6 +53,21 @@ O = esp32_prj
 OU = IT
 CN = client
 EOF
+
+    # Client config
+    cat > client_home_assistant.conf <<EOF
+[req]
+distinguished_name = req_distinguished_name
+prompt = no
+
+[req_distinguished_name]
+C = RO
+ST = Bucharest
+L = Bucharest
+O = esp32_prj
+OU = IT
+CN = client_home_assistant
+EOF
 }
 
 # Function to generate Certificate Authority - CA
@@ -93,6 +108,18 @@ generate_client() {
     cp client.key ../../main/certs
 }
 
+# Function to generate client certificates for home assistant
+generate_home_assistant() {
+     echo "#####  Generating Home Assistant Key  #####"
+    openssl genrsa -out client_home_assistant.key 2048 || { echo "##### Failed to generate client_home_assistant key #####"; exit 1; }
+
+    echo "#####  Generating a Certificate Signing Request (CSR)  #####"
+    openssl req -out client_home_assistant.csr -key client_home_assistant.key -new -config client_home_assistant.conf || { echo "##### Failed to generate CSR #####"; exit 1; }
+
+    echo "#####  Generate Home Assistant Certificate  #####"
+    openssl x509 -req -in client_home_assistant.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out client_home_assistant.crt -days 365 || { echo "##### Failed to generate Generate Home Assistant Certificate #####"; exit 1; }
+}
+
 # Create config files
 create_configs
 
@@ -111,6 +138,13 @@ case "$1" in
             generate_ca
         fi
         generate_client
+        ;;
+    -home_assistant)
+        # Check if CA exists, if not generate it
+        if [[ ! -f ca.crt || ! -f ca.key ]]; then
+            generate_ca
+        fi
+        generate_home_assistant
         ;;
     -clean)
         echo "#####  Cleaning all generated certificates  #####"

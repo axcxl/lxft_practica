@@ -45,4 +45,7 @@ Instructions:
 5. Click "Re-open in devcontainer". Wait for container to be built.
 6. Build, flash, monitor device.
 
-
+# TODOs
+- Home Assistant Setup + Docker Compose
+- HTTPs server info on OTA and configs ERRORS
+- Wifi - Custom Hotspot Setup

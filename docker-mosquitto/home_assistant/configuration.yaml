@@ -1,0 +1,31 @@
+
+# Loads default set of integrations. Do not remove.
+default_config:
+
+# Load frontend themes from the themes folder
+frontend:
+  themes: !include_dir_merge_named themes
+
+automation: !include automations.yaml
+script: !include scripts.yaml
+
+mqtt:
+  sensor:
+    - name: "ESP Temperature"
+      state_topic: "/sensor_ESP/TEMP"
+      unit_of_measurement: "°C"
+      device_class: "temperature"
+      unique_id: "esp_temp_sensor_01"
+
+    - name: "ESP Humidity"
+      state_topic: "/sensor_ESP/HUM"
+      unit_of_measurement: "%"
+      device_class: "humidity"
+      unique_id: "esp_humidity_sensor_01"
+
+    - name: "ESP Pressure"
+      state_topic: "/sensor_ESP/PRES"
+      unit_of_measurement: "hPa"
+      device_class: "pressure"
+      unique_id: "esp_pressure_sensor_01"
+
