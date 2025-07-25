@@ -22,25 +22,35 @@ bool mqtt_config_updated = false;
 
 static esp_err_t get_handler(httpd_req_t *req)
 {
-    char html_buffer[1024];
+    char html_buffer[2048];
 
     /* Construct the HTML page */
     snprintf(html_buffer, sizeof(html_buffer),
-        "<!DOCTYPE html><html><head><title>ESP32 Control</title></head>"
-        "<body><h1>ESP32 - MQTT Config</h1>"
-        "<h3>Parameters</h3>"
-        "<form method=\"post\" action=\"/update\">"
-        "<b>ID: </b> <input type=\"text\" size=\"6\" maxlength=\"6\" name=\"ID\" value=\"%s\"><br><br>"
-        "<b>URL: </b> <input type=\"text\" size=\"64\" maxlength=\"64\" name=\"URL\" value=\"%s\"><br><br>"
-        "<input type=\"submit\" value=\"Update\">"
-        "</form>"
-        "<hr><h1>ESP32 - OTA Update</h1>"
-        "<form method=\"post\" action=\"/ota\" enctype=\"multipart/form-data\">"
-        "<input type=\"file\" name=\"firmware\">"
-        "<input type=\"submit\" value=\"Update Firmware\">"
-        "</form>"
-        "</body></html>",
-        ID, URL);
+            "<!DOCTYPE html><html><head><title>ESP32 Control</title>"
+            "<style>"
+            "body{font-family:system-ui,sans-serif;background:#f0f2f5;margin:0;padding:1rem}"
+            "div{background:#fff;padding:1.5rem;border-radius:8px;box-shadow:0 4px 10px rgba(0,0,0,.1);max-width:500px;margin:0 auto 1rem auto}"
+            "h1{color:#0056b3;margin:0 0 1rem 0;padding-bottom:.5rem;border-bottom:1px solid #eee}"
+            "b{display:block;margin-bottom:.3rem;color:#555;font-weight:600}"
+            "input[type=text]{width:100%%;padding:.5rem;border:1px solid #ccc;border-radius:4px;box-sizing:border-box;margin-bottom:1rem}"
+            "input[type=submit]{background:#007bff;color:#fff;border:0;padding:.7rem 1.2rem;border-radius:5px;cursor:pointer;font-size:1em;transition:background .2s;width:100%%;margin-top:.5rem}"
+            "input[type=submit]:hover{background:#0056b3}"
+            "input[type=file]{width:100%%;border:1px solid #ccc;padding:.4rem;border-radius:4px}"
+            "</style></head>"
+            "<body>"
+            "<div><h1>MQTT Config</h1>"
+            "<form method=\"post\" action=\"/update\">"
+            "<b>ID:</b><input type=\"text\" size=\"6\" maxlength=\"6\" name=\"ID\" value=\"%s\">"
+            "<b>URL:</b><input type=\"text\" size=\"64\" maxlength=\"64\" name=\"URL\" value=\"%s\">"
+            "<input type=\"submit\" value=\"Update Parameters\">"
+            "</form></div>"
+            "<div><h1>OTA Update</h1>"
+            "<form method=\"post\" action=\"/ota\" enctype=\"multipart/form-data\">"
+            "<input type=\"file\" name=\"firmware\">"
+            "<input type=\"submit\" value=\"Update Firmware\">"
+            "</form></div>"
+            "</body></html>",
+            ID, URL);
 
     /* Send the response */
     httpd_resp_set_type(req, "text/html");
@@ -48,6 +58,33 @@ static esp_err_t get_handler(httpd_req_t *req)
 
     return ESP_OK;
 }
+
+
+/*
+ *  Used to inform the user about request errors 
+ */
+static void send_response_page(httpd_req_t *req, const char *http_status, const char *title, const char *message)
+{
+    char html_buffer[1024];
+    snprintf(html_buffer, sizeof(html_buffer),
+            "<!DOCTYPE html><html><head><title>%s</title>"
+            "<style>"
+            "body{margin:0;font-family:system-ui,sans-serif;display:grid;place-content:center;min-height:100vh;background:#f0f2f5}"
+            "div{background:#fff;padding:2rem;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.1);text-align:center;max-width:400px}"
+            "h1{margin-top:0;color:#0056b3}"
+            "p{color:#555;line-height:1.6;margin-bottom:1.5rem}"
+            "a{text-decoration:none;background:#007bff;color:#fff;padding:.7rem 1.2rem;border-radius:5px;transition:background .2s}"
+            "a:hover{background:#0056b3}"
+            "</style></head>"
+            "<body><div><h1>%s</h1><p>%s</p>"
+            "<a href=\"/\">Go Back</a></div></body></html>",
+            title, title, message);
+
+    httpd_resp_set_status(req, http_status);
+    httpd_resp_set_type(req, "text/html");
+    httpd_resp_send(req, html_buffer, HTTPD_RESP_USE_STRLEN);
+}
+
 
 
 /*
@@ -81,6 +118,7 @@ static esp_err_t post_handler(httpd_req_t *req)
         URL_DECODE(temp_val);
         if (strlen(temp_val) == 0) {
             ESP_LOGW(TAG, "Received empty ID, skipping update\n");
+            send_response_page(req, "400 Bad Request", "ID Update Failed", "Empty ID field");
         } else {
             ESP_LOGI(TAG, "Received ID: '%s'", temp_val);
             strncpy(ID, temp_val, ID_LEN);
@@ -95,6 +133,7 @@ static esp_err_t post_handler(httpd_req_t *req)
         URL_DECODE(temp_val);
         if (strlen(temp_val) == 0) {
             ESP_LOGW(TAG, "Received empty URL, skipping update\n");
+            send_response_page(req, "400 Bad Request", "URL Update Failed", "Empty URL field");
         } else {
             ESP_LOGI(TAG, "Received URL: '%s'\n", temp_val);
             strncpy(URL, temp_val, URL_LEN);
@@ -122,6 +161,7 @@ static esp_err_t ota_update_handler(httpd_req_t *req)
     char ota_write_buf[OTA_BUFSIZE + 1] = { 0 };
     char *body_start_p = NULL;
     esp_err_t err;
+    char error[100];
 
     ESP_LOGI(TAG, "Starting OTA update...");
 
@@ -129,7 +169,7 @@ static esp_err_t ota_update_handler(httpd_req_t *req)
     update_partition = esp_ota_get_next_update_partition(NULL);
     if (update_partition == NULL) {
         ESP_LOGE(TAG, "OTA partition not found");
-        httpd_resp_send_500(req);
+        send_response_page(req, "400 Bad Request", "Firmware Update Failed", "OTA partition not found");
         return ESP_FAIL;
     }
     ESP_LOGI(TAG, "Writing to partition subtype %d at offset 0x%x",
@@ -139,8 +179,9 @@ static esp_err_t ota_update_handler(httpd_req_t *req)
        length includes headers, not just the binary */
     err = esp_ota_begin(update_partition, OTA_SIZE_UNKNOWN, &ota_handle);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "esp_ota_begin failed (%s)", esp_err_to_name(err));
-        httpd_resp_send_500(req);
+        snprintf(error, sizeof(error), "esp_ota_begin failed (%s)", esp_err_to_name(err));
+        ESP_LOGE(TAG, "%s", error);
+        send_response_page(req, "400 Bad Request", "Firmware Update Failed", error);
         return ESP_FAIL;
     }
 
@@ -156,9 +197,9 @@ static esp_err_t ota_update_handler(httpd_req_t *req)
                 /* Socket timeout, can retry */
                 continue;
             }
-            ESP_LOGE(TAG, "Firmware reception failed");
             esp_ota_abort(ota_handle);
-            httpd_resp_send_500(req);
+            ESP_LOGE(TAG, "Firmware reception failed");
+            send_response_page(req, "400 Bad Request", "Firmware Update failed", "Reception failed");
             return ESP_FAIL;
         }
 
@@ -177,9 +218,9 @@ static esp_err_t ota_update_handler(httpd_req_t *req)
                 /* Write the first chunk of binary data */
                 err = esp_ota_write(ota_handle, (const void *)body_start_p, data_len);
                 if (err != ESP_OK) {
-                    ESP_LOGE(TAG, "esp_ota_write failed (%s)", esp_err_to_name(err));
-                    esp_ota_abort(ota_handle);
-                    httpd_resp_send_500(req);
+                    snprintf(error, sizeof(error), "esp_ota_write failed (%s)", esp_err_to_name(err));
+                    ESP_LOGE(TAG, "%s", error);
+                    send_response_page(req, "400 Bad Request", "Firmware Write Failed", error);
                     return ESP_FAIL;
                 }
                 header_found = true;
@@ -189,9 +230,9 @@ static esp_err_t ota_update_handler(httpd_req_t *req)
             /* This is a subsequent chunk, containing only binary data */
             err = esp_ota_write(ota_handle, (const void *)ota_write_buf, recv_len);
             if (err != ESP_OK) {
-                ESP_LOGE(TAG, "esp_ota_write failed (%s)", esp_err_to_name(err));
-                esp_ota_abort(ota_handle);
-                httpd_resp_send_500(req);
+                snprintf(error, sizeof(error), "esp_ota_write failed (%s)", esp_err_to_name(err));
+                ESP_LOGE(TAG, "%s", error);
+                send_response_page(req, "400 Bad Request", "Firmware Write Failed", error);
                 return ESP_FAIL;
             }
             binary_file_len += recv_len;
@@ -213,18 +254,21 @@ static esp_err_t ota_update_handler(httpd_req_t *req)
     if (err != ESP_OK) {
         if (err == ESP_ERR_OTA_VALIDATE_FAILED) {
             ESP_LOGE(TAG, "Image validation failed, image is corrupted or incomplete");
+            send_response_page(req, "400 Bad Request", "Firmware Update Failed", "Image validation failed, image is corrupted or incomplete");
         } else {
-            ESP_LOGE(TAG, "esp_ota_end failed (%s)!", esp_err_to_name(err));
+            snprintf(error, sizeof(error), "esp_ota_end failed (%s)!", esp_err_to_name(err));
+            ESP_LOGE(TAG, "%s", error);
+            send_response_page(req, "400 Bad Request", "Firmware Write Failed", error);
         }
-        httpd_resp_send_500(req);
         return ESP_FAIL;
     }
 
     /* Set the boot partition to the new one */
     err = esp_ota_set_boot_partition(update_partition);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "esp_ota_set_boot_partition failed (%s)!", esp_err_to_name(err));
-        httpd_resp_send_500(req);
+        snprintf(error, sizeof(error), "esp_ota_set_boot_partition failed (%s)!", esp_err_to_name(err));
+        ESP_LOGE(TAG, "%s", error);
+        send_response_page(req, "400 Bad Request", "Firmware Write Failed", error);
         return ESP_FAIL;
     }
 

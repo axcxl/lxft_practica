@@ -1,0 +1,27 @@
+services:
+  homeassistant:
+    container_name: homeassistant
+    image: "ghcr.io/home-assistant/home-assistant:latest"
+    volumes:
+      - ./docker:/config
+      - /etc/localtime:/etc/localtime:ro
+      - /run/dbus:/run/dbus:ro
+    restart: unless-stopped
+    privileged: true
+    network_mode: host
+
+  mosquitto:
+      container_name: mosquitto_broker
+      image: eclipse-mosquitto
+      ports:
+        - "1883:1883"
+        - "9001:9001"
+        - "8883:8883"
+      volumes:
+        - ./../mosquitto.conf:/mosquitto/config/mosquitto.conf
+        - ./../certs/ca.crt:/mosquitto/certs/ca.crt
+        - ./../certs/broker.key:/mosquitto/certs/broker.key
+        - ./../certs/broker.crt:/mosquitto/certs/broker.crt
+        - /mosquitto/log:/mosquitto/log
+        - /mosquitto/data:/mosquitto/data
+      restart: unless-stopped

@@ -1,4 +1,4 @@
-# lxft_practica2024
+# lxft_practica2025
 
 ## Table of Contents
 
@@ -46,6 +46,5 @@ Instructions:
 6. Build, flash, monitor device.
 
 # TODOs
-- Home Assistant Setup + Docker Compose
 - HTTPs server info on OTA and configs ERRORS
 - Wifi - Custom Hotspot Setup

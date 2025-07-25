@@ -9,6 +9,7 @@ frontend:
 automation: !include automations.yaml
 script: !include scripts.yaml
 
+# Process the MQTT sensor data
 mqtt:
   sensor:
     - name: "ESP Temperature"

@@ -1,4 +1,4 @@
-# MQTTs with Docker
+# DHCP
 
 - **dhcp.sh + dhcp.conf** ~ used for running a local DHCP server for the esp32 board
     - the esp32 mac adress should be updated and if needed the IP network
@@ -6,6 +6,8 @@
     ```bash
         sudo ip link set <old_name> name eth0
     ```
+
+# MQTTs with Docker
 
 - **broker.sh** ~ runs via docker the MQTTs broker (based on the parameters set on mosquitto.conf)
     - if the config file is updated
@@ -29,17 +31,19 @@
 
 
 # Home Assistant
-- **home_assistant.sh** ~ installs and runs the home assistant docker
-    - To acces the web page via browser use this:  
+
+- **run_docker.sh** ~ runs home assistant and the MQTTS broker
+- To acces the web page via browser use this:  
         http://localhost:8123  
-        - Username: admin
+        - Username: admin  
         - Password: #dxc_lxft#
-    - for stopping and removing the docker run:
-    ```bash
-        docker rm -f homeassistant
-    ``` 
-    - for updating home assistant docker:
-    ```bash
-        docker compose pull
-        docker compose up -d
-    ```
+- for stopping and removing the docker run:
+```bash
+    docker rm -f homeassistant
+```
+
+- for updating home assistant docker:
+```bash
+    docker compose pull
+    docker compose up -d
+```
