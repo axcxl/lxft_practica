@@ -47,3 +47,13 @@
     docker compose pull
     docker compose up -d
 ```
+
+- for email verification:
+```bash
+    echo -n 'email@outlook.com' | base64
+    echo -n 'password' | base64
+    openssl s_client -connect smtp-mail.outlook.com:587 -starttls smtp -crlf
+    # after the connection is established:
+    --> EHLO
+    --> AUTH LOGIN
+```

@@ -1,4 +1,3 @@
-
 # Loads default set of integrations. Do not remove.
 default_config:
 
@@ -8,6 +7,21 @@ frontend:
 
 automation: !include automations.yaml
 script: !include scripts.yaml
+
+
+# Email notifications
+notify:
+  - name: "outlook_notification"
+    platform: smtp
+    server: "smtp-mail.outlook.com"
+    port: 587
+    sender: !secret outlook_address
+    encryption: starttls
+    username: !secret outlook_address
+    password: !secret outlook_app_password
+    recipient:
+      - "andreidinu408@yahoo.com"
+
 
 # Process the MQTT sensor data
 mqtt:
@@ -29,4 +43,3 @@ mqtt:
       unit_of_measurement: "hPa"
       device_class: "pressure"
       unique_id: "esp_pressure_sensor_01"
-

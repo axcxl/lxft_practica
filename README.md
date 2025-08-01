@@ -46,5 +46,6 @@ Instructions:
 6. Build, flash, monitor device.
 
 # TODOs
-- HTTPs server info on OTA and configs ERRORS
+- Home Assistant notifications via email
 - Wifi - Custom Hotspot Setup
+- Watchdog

@@ -11,6 +11,7 @@
 
 #include "esp_ota_ops.h"
 #include "esp_system.h"
+#include "esp_task_wdt.h"
 #define OTA_BUFSIZE 1024
 
 static const char *TAG = "HTTPS";
@@ -162,13 +163,26 @@ static esp_err_t ota_update_handler(httpd_req_t *req)
     char *body_start_p = NULL;
     esp_err_t err;
     char error[100];
+    TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
+    bool added_to_wdt = false;
 
     ESP_LOGI(TAG, "Starting OTA update...");
+
+    /*  Try to add current task to watchdog monitoring */
+    err = esp_task_wdt_add(current_task);
+    if (err == ESP_OK) {
+        added_to_wdt = true;
+        esp_task_wdt_reset();
+        ESP_LOGD(TAG, "OTA task added to watchdog monitoring");
+    } else {
+        ESP_LOGW(TAG, "Could not add OTA task to watchdog: %s", esp_err_to_name(err));
+    }
 
     /* Find the OTA partition */
     update_partition = esp_ota_get_next_update_partition(NULL);
     if (update_partition == NULL) {
         ESP_LOGE(TAG, "OTA partition not found");
+        if (added_to_wdt) esp_task_wdt_delete(current_task);
         send_response_page(req, "400 Bad Request", "Firmware Update Failed", "OTA partition not found");
         return ESP_FAIL;
     }
@@ -181,6 +195,7 @@ static esp_err_t ota_update_handler(httpd_req_t *req)
     if (err != ESP_OK) {
         snprintf(error, sizeof(error), "esp_ota_begin failed (%s)", esp_err_to_name(err));
         ESP_LOGE(TAG, "%s", error);
+        if (added_to_wdt) esp_task_wdt_delete(current_task);
         send_response_page(req, "400 Bad Request", "Firmware Update Failed", error);
         return ESP_FAIL;
     }
@@ -188,9 +203,16 @@ static esp_err_t ota_update_handler(httpd_req_t *req)
     int content_received = 0;
     int binary_file_len = 0;
     bool header_found = false;
+    int chunk_count = 0;
 
     /* Read the request body in chunks */
     while (true) {
+        /* Feed watchdog every 20 chunks to prevent timeout during large uploads */
+        if (added_to_wdt && (++chunk_count % 20 == 0)) {
+            esp_task_wdt_reset();
+            ESP_LOGD(TAG, "OTA watchdog fed (chunk %d)", chunk_count);
+        }
+
         int recv_len = httpd_req_recv(req, ota_write_buf, OTA_BUFSIZE);
         if (recv_len < 0) {
             if (recv_len == HTTPD_SOCK_ERR_TIMEOUT) {
@@ -199,6 +221,7 @@ static esp_err_t ota_update_handler(httpd_req_t *req)
             }
             esp_ota_abort(ota_handle);
             ESP_LOGE(TAG, "Firmware reception failed");
+            if (added_to_wdt) esp_task_wdt_delete(current_task);
             send_response_page(req, "400 Bad Request", "Firmware Update failed", "Reception failed");
             return ESP_FAIL;
         }
@@ -220,6 +243,7 @@ static esp_err_t ota_update_handler(httpd_req_t *req)
                 if (err != ESP_OK) {
                     snprintf(error, sizeof(error), "esp_ota_write failed (%s)", esp_err_to_name(err));
                     ESP_LOGE(TAG, "%s", error);
+                    if (added_to_wdt) esp_task_wdt_delete(current_task);
                     send_response_page(req, "400 Bad Request", "Firmware Write Failed", error);
                     return ESP_FAIL;
                 }
@@ -232,6 +256,7 @@ static esp_err_t ota_update_handler(httpd_req_t *req)
             if (err != ESP_OK) {
                 snprintf(error, sizeof(error), "esp_ota_write failed (%s)", esp_err_to_name(err));
                 ESP_LOGE(TAG, "%s", error);
+                if (added_to_wdt) esp_task_wdt_delete(current_task);
                 send_response_page(req, "400 Bad Request", "Firmware Write Failed", error);
                 return ESP_FAIL;
             }
@@ -249,9 +274,15 @@ static esp_err_t ota_update_handler(httpd_req_t *req)
 
     ESP_LOGI(TAG, "Total binary data written: %d bytes", binary_file_len);
 
+    /* Feed watchdog before finalizing OTA */
+    if (added_to_wdt) {
+        esp_task_wdt_reset();
+    }
+
     /* Finish the OTA update */
     err = esp_ota_end(ota_handle);
     if (err != ESP_OK) {
+        if (added_to_wdt) esp_task_wdt_delete(current_task);
         if (err == ESP_ERR_OTA_VALIDATE_FAILED) {
             ESP_LOGE(TAG, "Image validation failed, image is corrupted or incomplete");
             send_response_page(req, "400 Bad Request", "Firmware Update Failed", "Image validation failed, image is corrupted or incomplete");
@@ -268,6 +299,7 @@ static esp_err_t ota_update_handler(httpd_req_t *req)
     if (err != ESP_OK) {
         snprintf(error, sizeof(error), "esp_ota_set_boot_partition failed (%s)!", esp_err_to_name(err));
         ESP_LOGE(TAG, "%s", error);
+        if (added_to_wdt) esp_task_wdt_delete(current_task);
         send_response_page(req, "400 Bad Request", "Firmware Write Failed", error);
         return ESP_FAIL;
     }
@@ -277,12 +309,16 @@ static esp_err_t ota_update_handler(httpd_req_t *req)
     const char *success_msg = "Firmware update successful. Rebooting now...";
     httpd_resp_send(req, success_msg, HTTPD_RESP_USE_STRLEN);
     
+    /* Clean up watchdog before restart */
+    if (added_to_wdt) {
+        esp_task_wdt_delete(current_task);
+    }
+    
     vTaskDelay(pdMS_TO_TICKS(1000));
     esp_restart();
 
     return ESP_OK;
 }
-
 
 
 

@@ -16,6 +16,7 @@ utils/certs/client_home_assistant.crt
 utils/certs/client_home_assistant.csr
 utils/certs/client_home_assistant.key
 utils/home_assistant/docker
+utils/home_assistant/secrets.yaml
 main/certs/
 sdkconfig.old
 tags*

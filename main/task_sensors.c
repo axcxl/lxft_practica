@@ -6,6 +6,8 @@
 #include "freertos/FreeRTOS.h"
 #include "h/sensor_queue.h"
 #include "h/task_sensors.h"
+#include "esp_task_wdt.h"
+#include "driver/gpio.h"
 
 const static char *TAG = "sensors";
 
@@ -70,13 +72,36 @@ void read_send_bme280(bmp280_t *dev, QueueHandle_t* queue)
 void task_sensors(void* msg_queue)
 { 
     TickType_t xLastWakeTime = xTaskGetTickCount();
-    const TickType_t xTimeIncrement = pdMS_TO_TICKS(10000); // run every 10 second
+    const TickType_t xTimeIncrement = pdMS_TO_TICKS(5000); // run every 5 seconds
     bmp280_t *dev_bme280;
+    TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
+    bool added_to_wdt = false;
+
+    /* Suppress I2C master pull-up warning since everything works fine */
+    esp_log_level_set("i2c.master", ESP_LOG_ERROR);
 
     ESP_ERROR_CHECK(i2cdev_init());
     dev_bme280 = init_bme280();
     
+    /* Wait a bit for main to finish initialization */
+    vTaskDelay(pdMS_TO_TICKS(200));
+    
+    /* Try to add task to watchdog monitoring */
+    esp_err_t err = esp_task_wdt_add(current_task);
+    if (err == ESP_OK) {
+        added_to_wdt = true;
+        ESP_LOGI(TAG, "Sensor task added to watchdog monitoring");
+    } else {
+        ESP_LOGW(TAG, "Could not add sensor task to watchdog: %s", esp_err_to_name(err));
+    }
+    
     while(1){
+        /* Feed the watchdog only if is active */
+        if (added_to_wdt) {
+            esp_task_wdt_reset();
+            ESP_LOGD(TAG, "Sensor task watchdog fed");
+        }
+        
         vTaskDelayUntil(&xLastWakeTime, xTimeIncrement);
 
         read_send_bme280(dev_bme280, msg_queue);

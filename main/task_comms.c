@@ -11,6 +11,7 @@
 #include "h/sensor_queue.h"
 #include "h/https_utils.h"
 #include "lwip/ip4_addr.h"
+#include "esp_task_wdt.h"
 
 const static char *TAG = "comms";
 
@@ -256,6 +257,8 @@ void task_comms(void* msg_queue)
     int msg_id;
     sensq data;
     const TickType_t xTicksToWait = pdMS_TO_TICKS(1000);
+    TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
+    bool added_to_wdt = false;
 
     init_ethernet_and_netif();
 
@@ -263,9 +266,26 @@ void task_comms(void* msg_queue)
     
     ESP_LOGI(TAG, "Board ID: %s", ID);
 
+    /* Wait a bit for main to finish initialization */
+    vTaskDelay(pdMS_TO_TICKS(200));
+    
+    /* Try to add task to watchdog monitoring */
+    esp_err_t err = esp_task_wdt_add(current_task);
+    if (err == ESP_OK) {
+        added_to_wdt = true;
+        ESP_LOGI(TAG, "Comms task added to watchdog monitoring");
+    } else {
+        ESP_LOGW(TAG, "Could not add comms task to watchdog: %s", esp_err_to_name(err));
+    }
 
     /* Main Loop */
     while(1){
+        /* Feed the watchdog only if is active */
+        if (added_to_wdt) {
+            esp_task_wdt_reset();
+            ESP_LOGD(TAG, "Comms task watchdog fed");
+        }
+        
         if (mqtt_config_updated) {
             config_mqtt_protocol();
         }
