@@ -1,14 +1,12 @@
-- alias: 'High Temperature Email Alert'
-  description: 'Sends an email when the ESP temperature goes above 27°C'
-  id: high_temp_email_alert_01
+- id: 'high_temperature_alert'
+  alias: 'High Temperature Alert'
+  description: 'Send notification when temperature exceeds 27°C'
   trigger:
-    - platform: numeric_state
-      entity_id: sensor.esp_temperature
-      above: 26
+    platform: numeric_state
+    entity_id: sensor.esp_temperature
+    above: 27
   action:
-    - service: notify.outlook_notification # This MUST match the 'name' from configuration.yaml
-      data:
-        title: "🔥 High Temperature Alert! 🔥"
-        message: >
-          The temperature measured by '{{ trigger.to_state.attributes.friendly_name }}' has exceeded 27°C.
-          The current temperature is {{ trigger.to_state.state }}°C.
+    service: notify.outlook_notification
+    data:
+      title: "Temperature Alert"
+      message: "Temperature has exceeded 28°C! Current temperature is {{ states('sensor.esp_temperature') }}°C"

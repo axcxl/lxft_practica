@@ -1,8 +1,7 @@
-#ifndef HTTPS_UTILS_H
-#define HTTPS_UTILS_H
+#ifndef HTTP_SERVER_H
+#define HTTP_SERVER_H
 
 #include "esp_http_server.h"
-#include "esp_https_server.h"
 
 #define ID_LEN 6
 #define URL_LEN 64
@@ -11,7 +10,6 @@ extern char ID[ID_LEN + 1];
 extern char URL[URL_LEN + 1];
 extern bool mqtt_config_updated;
 
-httpd_handle_t start_webserver(void);
 
 /*
  * Macro that receives as argument a string (char*) converts the + in ' '
@@ -33,5 +31,18 @@ httpd_handle_t start_webserver(void);
     } \
     *q = '\0'; \
 } while (0)
+
+
+
+/**
+ * @brief Start HTTP server for esp configuration through hotspot
+ * @return httpd_handle_t Handle to the HTTP server, or NULL on failure
+ */
+httpd_handle_t start_http_server(void);
+
+/**
+ * @brief LOG message for console
+ */
+void print_http_info(void);
 
 #endif

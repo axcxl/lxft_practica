@@ -12,7 +12,9 @@
     "files.associations": {
         "ethernet_init.h": "c",
         "freertos.h": "c",
-        "task_sensors.h": "c"
+        "task_sensors.h": "c",
+        "wifi.h": "c",
+        "netdb.h": "c"
     },
     "idf.gitPath": "git"
 }

@@ -15,12 +15,14 @@ notify:
     platform: smtp
     server: "smtp-mail.outlook.com"
     port: 587
+    timeout: 60
     sender: !secret outlook_address
     encryption: starttls
     username: !secret outlook_address
     password: !secret outlook_app_password
     recipient:
       - "andreidinu408@yahoo.com"
+    debug: true
 
 
 # Process the MQTT sensor data

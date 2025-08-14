@@ -430,7 +430,7 @@ CONFIG_PARTITION_TABLE_MD5=y
 #
 # Example Configuration
 #
-CONFIG_BROKER_URL="mqtts://192.168.1.175"
+CONFIG_BROKER_URL="mqtts://192.168.1.176"
 # CONFIG_EXAMPLE_ENABLE_HTTPS_USER_CALLBACK is not set
 # end of Example Configuration
 

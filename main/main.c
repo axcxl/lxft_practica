@@ -1,21 +1,21 @@
-#include <stdio.h>
-#include <string.h>
-
-#include "esp_log.h"
 #include "h/task_comms.h"
 #include "h/task_sensors.h"
 #include "h/sensor_queue.h"
+#include "h/wifi.h"
+
+#include <string.h>
+#include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "esp_partition.h"
 #include "esp_task_wdt.h"
 
 const static char *TAG = "main";
 
-#define TASK_PRIO_3         3
-#define CORE0       0
-#define CORE1       ((CONFIG_FREERTOS_NUMBER_OF_CORES > 1) ? 1 : tskNO_AFFINITY)
+#define TASK_PRIO_3     3
+#define CORE0           0
+#define CORE1           ((CONFIG_FREERTOS_NUMBER_OF_CORES > 1) ? 1 : tskNO_AFFINITY)
 
-// Task handles for watchdog monitoring
+/* Task handles for watchdog monitoring */
 TaskHandle_t sensor_task_handle = NULL;
 TaskHandle_t comms_task_handle = NULL;
 
@@ -40,6 +40,14 @@ void print_partition_table(void)
 void app_main(void)
 {
     static QueueHandle_t msg_queue;
+
+    /* Initialize NVS */
+    esp_err_t ret = nvs_flash_init();
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+      ESP_ERROR_CHECK(nvs_flash_erase());
+      ret = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(ret);
 
     /* Deinitialize the watchdog and then reintitialize it with the custom config */
     esp_task_wdt_config_t twdt_config = {

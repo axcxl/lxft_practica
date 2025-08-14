@@ -1,5 +1,4 @@
-
-idf_component_register(SRCS "task_server.c" "main.c" "task_comms.c" "task_sensors.c"
+idf_component_register(SRCS "wifi.c" "main.c" "task_comms.c" "task_sensors.c" "dns_server.c" "http_server.c" 
                        INCLUDE_DIRS "."
                        EMBED_TXTFILES
                         "certs/servercert.pem"

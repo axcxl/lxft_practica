@@ -1,5 +1,8 @@
+#include "h/task_comms.h"
+#include "h/sensor_queue.h"
+#include "h/wifi.h"
+#include "h/http_server.h"
 #include <string.h>
-
 #include "esp_log.h"
 #include "esp_eth.h"
 #include "esp_netif.h"
@@ -7,13 +10,10 @@
 #include "esp_event.h"
 #include "esp_mac.h"
 #include "mqtt_client.h"
-#include "h/task_comms.h"
-#include "h/sensor_queue.h"
-#include "h/https_utils.h"
 #include "lwip/ip4_addr.h"
 #include "esp_task_wdt.h"
 
-const static char *TAG = "comms";
+const static char *TAG = "__COMMS__";
 
 
 static uint8_t eth_port_cnt = 0;
@@ -194,6 +194,7 @@ void init_ethernet_and_netif(void)
 {
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
+    // Initialize Ethernet
     ESP_ERROR_CHECK(example_eth_init(&eth_handles, &eth_port_cnt));
 
     ESP_ERROR_CHECK(esp_netif_init());
@@ -221,6 +222,10 @@ void init_ethernet_and_netif(void)
         ESP_ERROR_CHECK(esp_netif_attach(eth_netif, esp_eth_new_netif_glue(eth_handles[i])));
     }
 
+    // Initialize WiFi as Access Point instead of Station
+    wifi_init_softap();
+
+    // Register event handlers
     ESP_ERROR_CHECK(esp_event_handler_register(ETH_EVENT, ESP_EVENT_ANY_ID, &eth_event_handler, NULL));
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_ETH_GOT_IP, &got_ip_event_handler, NULL));
 
@@ -262,10 +267,9 @@ void task_comms(void* msg_queue)
 
     init_ethernet_and_netif();
 
-    start_webserver();
+    start_http_server();  // Only HTTP server now
     
     ESP_LOGI(TAG, "Board ID: %s", ID);
-
     /* Wait a bit for main to finish initialization */
     vTaskDelay(pdMS_TO_TICKS(200));
     

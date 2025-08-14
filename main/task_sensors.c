@@ -9,7 +9,11 @@
 #include "esp_task_wdt.h"
 #include "driver/gpio.h"
 
-const static char *TAG = "sensors";
+const static char *TAG = "__SENSORS__";
+
+float http_temp = 0;
+float http_hum = 0;
+float http_pres = 0;
 
 /*  NOTE: we have a BME280 sensor on board, but the
  *  driver is for both the BME and BMP. Will use BME280 
@@ -33,6 +37,7 @@ bmp280_t *init_bme280()
     return dev;
 }
 
+
 void read_send_bme280(bmp280_t *dev, QueueHandle_t* queue)
 {
     float pressure, temperature, humidity;
@@ -44,6 +49,11 @@ void read_send_bme280(bmp280_t *dev, QueueHandle_t* queue)
         ESP_LOGE(TAG, "Temperature/pressure reading failed");
         return;
     }
+
+    /* Update data for http server */
+    http_temp = temperature;
+    http_hum = humidity;
+    http_pres = pressure;
 
     /* Put it in the queue one at a time */
     to_send.value = temperature;
@@ -68,6 +78,7 @@ void read_send_bme280(bmp280_t *dev, QueueHandle_t* queue)
     }
 
 }
+
 
 void task_sensors(void* msg_queue)
 { 
