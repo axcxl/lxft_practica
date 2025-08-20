@@ -49,9 +49,11 @@ static void eth_event_handler(void *arg, esp_event_base_t event_base,
                  mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
         break;
     case ETHERNET_EVENT_DISCONNECTED:
-        ESP_LOGI(TAG, "Ethernet Link Down");
+        ESP_LOGI(TAG, "Ethernet Link Down - activating WiFi backup");
         ip_acquired = false;
         mqtt_is_connected = false;
+        /*  Enable WiFi backup when Ethernet disconnects */
+        wifi_connect_backup();
         break;
     case ETHERNET_EVENT_START:
         ESP_LOGI(TAG, "Ethernet Started");
@@ -178,31 +180,54 @@ static void got_ip_event_handler(void *arg, esp_event_base_t event_base,
     ip_event_got_ip_t *event = (ip_event_got_ip_t *) event_data;
     const esp_netif_ip_info_t *ip_info = &event->ip_info;
 
-    ESP_LOGI(TAG, "~~~~~~~~~~~ Ethernet Got IP Address ~~~~~~~~~~~");
-    ESP_LOGI(TAG, "ETHIP:" IPSTR, IP2STR(&ip_info->ip));
-    ESP_LOGI(TAG, "ETHMASK:" IPSTR, IP2STR(&ip_info->netmask));
-    ESP_LOGI(TAG, "ETHGW:" IPSTR, IP2STR(&ip_info->gw));
-    ESP_LOGI(TAG, "~~~~~~~~~~~\n");
-    
-    ip_acquired = true;
-
-    config_mqtt_protocol();
+    switch (event_id) {
+        case IP_EVENT_ETH_GOT_IP:
+            ESP_LOGI(TAG, "~~~~~~~~~~~ Ethernet Got IP Address ~~~~~~~~~~~");
+            ESP_LOGI(TAG, "ETHIP:" IPSTR, IP2STR(&ip_info->ip));
+            ESP_LOGI(TAG, "ETHMASK:" IPSTR, IP2STR(&ip_info->netmask));
+            ESP_LOGI(TAG, "ETHGW:" IPSTR, IP2STR(&ip_info->gw));
+            ESP_LOGI(TAG, "~~~~~~~~~~~\n");
+            /*  Disable WiFi backup when Ethernet is available */
+            ip_acquired = true;
+            if (wifi_is_backup_connected()) {
+                ESP_LOGI(TAG, "Ethernet available - disabling WiFi backup");
+                wifi_disconnect_backup();
+            }
+            /* Update MQTT protocol */
+            config_mqtt_protocol();
+            break;
+        
+        case IP_EVENT_STA_GOT_IP:
+            ESP_LOGI(TAG, "~~~~~~~~~~~ WiFi Backup Got IP Address ~~~~~~~~~~~");
+            ESP_LOGI(TAG, "WIFIIP:" IPSTR, IP2STR(&ip_info->ip));
+            ESP_LOGI(TAG, "WIFIMASK:" IPSTR, IP2STR(&ip_info->netmask));
+            ESP_LOGI(TAG, "WIFIGW:" IPSTR, IP2STR(&ip_info->gw));
+            ESP_LOGI(TAG, "~~~~~~~~~~~\n");
+            /* Use WIFI only if Ethernet is not available */
+            if (!ip_acquired) {
+                ip_acquired = true;
+                config_mqtt_protocol();
+            }
+            break;
+        default:
+            ESP_LOGD(TAG, "IP event not handled");
+            break;
+    }
 }
 
 
 void init_ethernet_and_netif(void)
 {
     ESP_ERROR_CHECK(esp_event_loop_create_default());
-
-    // Initialize Ethernet
     ESP_ERROR_CHECK(example_eth_init(&eth_handles, &eth_port_cnt));
-
     ESP_ERROR_CHECK(esp_netif_init());
+
     esp_netif_inherent_config_t esp_netif_config = ESP_NETIF_INHERENT_DEFAULT_ETH();
     esp_netif_config_t cfg_spi = {
         .base = &esp_netif_config,
         .stack = ESP_NETIF_NETSTACK_DEFAULT_ETH
     };
+
     char if_key_str[10];
     char if_desc_str[10];
     char num_str[3];
@@ -222,12 +247,13 @@ void init_ethernet_and_netif(void)
         ESP_ERROR_CHECK(esp_netif_attach(eth_netif, esp_eth_new_netif_glue(eth_handles[i])));
     }
 
-    // Initialize WiFi as Access Point instead of Station
-    wifi_init_softap();
+    /* Initialize WiFi in AP+STA mode */
+    wifi_init_ap_sta_mode();
 
-    // Register event handlers
+    /* Register event handlers */
     ESP_ERROR_CHECK(esp_event_handler_register(ETH_EVENT, ESP_EVENT_ANY_ID, &eth_event_handler, NULL));
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_ETH_GOT_IP, &got_ip_event_handler, NULL));
+    ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &got_ip_event_handler, NULL));
 
     for (int i = 0; i < eth_port_cnt; i++) {
         ESP_ERROR_CHECK(esp_eth_start(eth_handles[i]));
@@ -242,7 +268,7 @@ char *get_mqtt_board_id()
 {
     uint8_t mac_addr[BOARD_ID_LEN];
     char *board_id;
-    esp_netif_t *esp_netif = esp_netif_next_unsafe(NULL); // we can use esp_netif_next_unsafe since we one time initialize the network and we don't de-init
+    esp_netif_t *esp_netif = esp_netif_next_unsafe(NULL);
     esp_eth_handle_t eth_hndl = esp_netif_get_io_driver(esp_netif);
 
     esp_eth_ioctl(eth_hndl, ETH_CMD_G_MAC_ADDR, mac_addr);
@@ -267,10 +293,10 @@ void task_comms(void* msg_queue)
 
     init_ethernet_and_netif();
 
-    start_http_server();  // Only HTTP server now
+    start_http_server();
     
     ESP_LOGI(TAG, "Board ID: %s", ID);
-    /* Wait a bit for main to finish initialization */
+    /* Wait for main to finish initialization */
     vTaskDelay(pdMS_TO_TICKS(200));
     
     /* Try to add task to watchdog monitoring */
