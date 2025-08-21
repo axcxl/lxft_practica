@@ -11,7 +11,7 @@
 #include "lwip/netdb.h"
 
 /* AP - network settings */
-#define WIFI_SSID       "ESP32-Config"
+#define WIFI_SSID       "ESP32-Config-1"
 #define WIFI_PASS       "esp32_config_psswd"
 #define WIFI_CHANNEL    1
 #define WIFI_MAX_CONNS  10

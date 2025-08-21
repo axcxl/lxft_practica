@@ -54,6 +54,50 @@ OU = IT
 CN = client
 EOF
 
+# ESP-Configs
+    cat > client_esp1.conf <<EOF
+[req]
+distinguished_name = req_distinguished_name
+prompt = no
+
+[req_distinguished_name]
+C = RO
+ST = Bucharest
+L = Bucharest
+O = esp32_1
+OU = IT
+CN = client_esp1
+EOF
+
+    cat > client_esp2.conf <<EOF
+[req]
+distinguished_name = req_distinguished_name
+prompt = no
+
+[req_distinguished_name]
+C = RO
+ST = Bucharest
+L = Bucharest
+O = esp32_2
+OU = IT
+CN = client_esp2
+EOF
+
+    cat > client_esp3.conf <<EOF
+[req]
+distinguished_name = req_distinguished_name
+prompt = no
+
+[req_distinguished_name]
+C = RO
+ST = Bucharest
+L = Bucharest
+O = esp32_3
+OU = IT
+CN = client_esp3
+EOF
+
+
     # Client config
     cat > client_home_assistant.conf <<EOF
 [req]
@@ -101,12 +145,29 @@ generate_client() {
 
     echo "#####  Generate Client Certificate  #####"
     openssl x509 -req -in client.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out client.crt -days 365 || { echo "##### Failed to generate Generate Client Certificate #####"; exit 1; }
-
-    rm ../../main/certs/client.crt
-    rm ../../main/certs/client.key
-    cp client.crt ../../main/certs
-    cp client.key ../../main/certs
 }
+
+generate_esp() {
+    echo "#####  Generating ESP32 Certificates  #####"
+    
+    # Generate certificates for each ESP32 client
+    for esp_num in 1 2 3; do
+        echo "#####  Generating ESP32 ${esp_num} Key  #####"
+        openssl genrsa -out client_esp${esp_num}.key 2048 || { echo "##### Failed to generate ESP32 ${esp_num} key #####"; exit 1; }
+
+        echo "#####  Generating a Certificate Signing Request (CSR) for ESP32 ${esp_num}  #####"
+        openssl req -out client_esp${esp_num}.csr -key client_esp${esp_num}.key -new -config client_esp${esp_num}.conf || { echo "##### Failed to generate CSR for ESP32 ${esp_num} #####"; exit 1; }
+
+        echo "#####  Generate ESP32 ${esp_num} Certificate  #####"
+        openssl x509 -req -in client_esp${esp_num}.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out client_esp${esp_num}.crt -days 365 || { echo "##### Failed to generate ESP32 ${esp_num} Certificate #####"; exit 1; }
+
+        # Copy to main/certs directory
+        rm -f ../../main/certs/client_esp${esp_num}.crt ../../main/certs/client_esp${esp_num}.key
+        cp client_esp${esp_num}.crt ../../main/certs
+        cp client_esp${esp_num}.key ../../main/certs
+    done
+}
+
 
 # Function to generate client certificates for home assistant
 generate_home_assistant() {
@@ -138,6 +199,13 @@ case "$1" in
             generate_ca
         fi
         generate_client
+        ;;
+    -esp)
+        # Check if CA exists, if not generate it
+        if [[ ! -f ca.crt || ! -f ca.key ]]; then
+            generate_ca
+        fi
+        generate_esp
         ;;
     -home_assistant)
         # Check if CA exists, if not generate it

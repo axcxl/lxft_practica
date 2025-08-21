@@ -12,7 +12,7 @@
 static const char *TAG = "__HTTP__";
 
 
-char ID[ID_LEN + 1] = "ESP";
+char ID[ID_LEN + 1] = "ESP-1";
 char URL[URL_LEN + 1] = CONFIG_BROKER_URL;
 bool mqtt_config_updated = false;
 

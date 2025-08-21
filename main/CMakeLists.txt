@@ -3,6 +3,10 @@ idf_component_register(SRCS "leds.c" "wifi.c" "main.c" "task_comms.c" "task_sens
                        EMBED_TXTFILES
                         "certs/servercert.pem"
                         "certs/prvtkey.pem"
-                        "certs/client.key"
-                        "certs/client.crt"
+                        "certs/client_esp1.key"
+                        "certs/client_esp1.crt"
+                        "certs/client_esp2.key"
+                        "certs/client_esp2.crt"
+                        "certs/client_esp3.key"
+                        "certs/client_esp3.crt"
                         "certs/ca.crt")
