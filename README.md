@@ -68,3 +68,5 @@ Build environment can be run on Windows using WSL2. Tested on Windows 10.
 ### Current Limitations
 
 *   ⚠️ OTA functionality not working in the WIFI Backup mode, only with Ethernet connectivity.
+*   Every ESP32 should have it's own mqtts certificate
+*   If the URL broker is modified in the config, it is not saved on reboot
